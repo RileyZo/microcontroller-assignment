@@ -1,0 +1,11 @@
+.vscode/
+Project Backups/
+*.hex
+*.bak
+*.lnp
+*.M51
+*.workspace
+*.plg
+*.uvopt
+*.LST
+*.OBJ
