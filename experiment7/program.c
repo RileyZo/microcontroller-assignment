@@ -18,27 +18,48 @@ unsigned int code TimerReload[14] = {
     0xFC44, 0xFCAC, 0xFD09, 0xFD34, 0xFD82, 0xFDC8, 0xFE06
 };
 
-unsigned int code Notes[7] = {
-    0xFC44, 0xFCAC, 0xFD09, 0xFD34, 0xFD82, 0xFDC8, 0xFE06
-};
-
 unsigned char code MusicScore[] = {
-    0x01, 0x01, 0x51, 0x51, 0x61, 0x61, 0x51, 0x04,
-    0x41, 0x41, 0x31, 0x31, 0x21, 0x21, 0x11, 0x04,
-    0x51, 0x51, 0x41, 0x41, 0x31, 0x31, 0x21, 0x04,
-    0x51, 0x51, 0x41, 0x41, 0x31, 0x31, 0x21, 0x04,
-    0x01, 0x01, 0x51, 0x51, 0x61, 0x61, 0x51, 0x04,
-    0x41, 0x41, 0x31, 0x31, 0x21, 0x21, 0x11, 0x0F
+    0x24, 0x24, 0x34, 0x44,
+    0x44, 0x34, 0x24, 0x14,
+    0x04, 0x04, 0x14, 0x24,
+    0x24, 0x14, 0x14, 0x02,
+    
+    0x24, 0x24, 0x34, 0x44,
+    0x44, 0x34, 0x24, 0x14,
+    0x04, 0x04, 0x14, 0x24,
+    0x14, 0x04, 0x04, 0x02,
+    
+    0x23, 0x43, 0x43, 0x23,
+    0x13, 0x03, 0x23, 0x33,
+    0x33, 0x23, 0x13, 0x03,
+    0x23, 0x13, 0x13, 0x01,
+    
+    0x14, 0x24, 0x34, 0x23,
+    0x43, 0x53, 0x43, 0x33,
+    0x24, 0x34, 0x44, 0x43,
+    0x53, 0x43, 0x33, 0x24,
+    
+    0x44, 0x54, 0x64, 0x54,
+    0x44, 0x34, 0x24, 0x14,
+    0x04, 0x14, 0x24, 0x34,
+    0x44, 0x34, 0x24, 0x14,
+    0x04, 0x04, 0x14, 0x24,
+    0x14, 0x04, 0x04, 0x44,
+    
+    0x34, 0x24, 0x14, 0x04,
+    0x04, 0x14, 0x04, 0x04,
+    0x0F
 };
 
 unsigned int input_delay = 1000;
+unsigned int input_duration = 5000;
 unsigned int key = 16;
 
 bit music_mode = 0;
 unsigned char music_index = 0;
 unsigned int music_tick = 0;
 unsigned int music_duration = 0;
-unsigned char current_note = 16;
+unsigned char current_note_index = 16;
 
 typedef enum {
     MUSIC_IDLE,
@@ -49,12 +70,12 @@ typedef enum {
 
 MusicState music_state = MUSIC_IDLE;
 
-void on_timer_timeout(void) interrupt 1 {
+void on_timer_timeout() interrupt 1 {
     if(music_mode) {
-        if(current_note < 16) {
+        if(current_note_index < 14) {
             SOUNDER = !SOUNDER;
-            TH0 = (Notes[current_note] >> 8) & 0xFF;
-            TL0 = Notes[current_note] & 0xFF;
+            TH0 = (TimerReload[current_note_index] >> 8) & 0xFF;
+            TL0 = TimerReload[current_note_index] & 0xFF;
         } else {
             SOUNDER = 1;
             TH0 = 0xFC;
@@ -73,11 +94,11 @@ void on_timer_timeout(void) interrupt 1 {
     }
 }
 
-void exit_music_mode(void) {
+void exit_music_mode() {
     music_mode = 0;
     music_state = MUSIC_IDLE;
     music_index = 0;
-    current_note = 16;
+    current_note_index = 16;
     SOUNDER = 1;
     P3 = 0x00;
     TH0 = 0xFC;
@@ -85,7 +106,7 @@ void exit_music_mode(void) {
 }
 
 void play_music_note(unsigned char music_data) {
-    current_note = (music_data >> 4) & 0x0F;
+    unsigned char note_idx = (music_data >> 4) & 0x0F;
     
     switch(music_data & 0x0F) {
         case 1: music_duration = 200; break;
@@ -94,14 +115,23 @@ void play_music_note(unsigned char music_data) {
         default: music_duration = 200; break;
     }
     
-    if(current_note < 7) {
-        P3 = NoteDisplay[current_note];
+    if(note_idx < 7) {
+        current_note_index = note_idx;
+        P3 = NoteDisplay[note_idx % 7];
+    } else if(note_idx >= 7 && note_idx < 14) {
+        current_note_index = note_idx;
+        if(note_idx < 7) {
+            P3 = NoteDisplay[note_idx];
+        } else {
+            P3 = 0x00;
+        }
     } else {
+        current_note_index = 16;
         P3 = 0x00;
     }
 }
 
-void music_player(void) {
+void music_player() {
     unsigned int i;
     unsigned char music_data;
     
@@ -154,8 +184,9 @@ void music_player(void) {
 
 void main() {
     unsigned int input_ticks = 0;
+    unsigned int duration = 0;
     unsigned int row = 0;
-    unsigned int i;
+    unsigned int i = 0;
     
     TMOD = 0x01;
     TH0 = 0xFC;
@@ -173,7 +204,7 @@ void main() {
             key = 16;
             music_state = MUSIC_IDLE;
             music_index = 0;
-            current_note = 16;
+            current_note_index = 16;
             
             while(SWITCH && music_mode) {
                 music_player();
@@ -201,6 +232,11 @@ void main() {
                 P3 = NoteDisplay[key % 7];
             } else {
                 P3 = 0x00;
+            }
+
+            if (duration++ > input_duration) {
+                key = 16;
+                duration = 0;
             }
         } else {
             if (input_ticks++ > input_delay) {
