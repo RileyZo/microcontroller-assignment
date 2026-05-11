@@ -2,8 +2,8 @@
 #include <intrins.h>
 
 unsigned char code Characters[] = {
-    0xC0,0xF9,0xA4,0xB0,0x99,0x92,0x82,0xF8,
-    0x80,0x90,0x88,0x83,0xC6,0xA1,0x86,0x8E
+    0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,
+    0x7F,0x6F,0x77,0x7C,0x39,0x5E,0x79,0x71
 };
 
 unsigned char Buffer[8] = { 16, 16, 16, 16, 16, 16, 16, 16 };
@@ -19,8 +19,8 @@ void update_display() {
     unsigned int key = 0;
     while(index < 8) {
         key = Buffer[index];
-        P1 = _crol_(0x01, index);
-        P2 = key < 16 ? Characters[key] : 0xff;
+        P1 = _crol_(~0x01, index);
+        P2 = key < 16 ? Characters[key] : 0x00;
         index++;
         delay(1);
     }
@@ -36,39 +36,34 @@ void push_buffer(unsigned int key) {
     received_count++;
 }
 
-void uart_init() {
-    SCON = 0x50;
-    TMOD &= 0x0F;
-    TMOD |= 0x20;
-    TH1 = 0xFD;     // 波特率9600 (11.0592MHz)
-    TL1 = 0xFD;
-    TR1 = 1;
-    ES = 1;
-    EA = 1;
-}
-
-void uart_send(unsigned char dat) {
+void send(unsigned char dat) {
     SBUF = dat;
     while(!TI);
     TI = 0;
 }
 
 void main() {
-    uart_init();
-    
+    SCON = 0x50;
+    TMOD = 0x20;
+    TH1 = 0xFD;
+    TL1 = 0xFD;
+    TR1 = 1; 
+    ES = 1;
+    EA = 1;
+
     while (1) {
         update_display();
     }
 }
 
-void uart_isr() interrupt 4 {
+void on_received() interrupt 4 {
     unsigned char key;
     if (RI) {
         RI = 0;
         key = SBUF;
         if (key < 16) {
             push_buffer(key);
-            uart_send(received_count);
+            send(received_count);
         }
     }
 }

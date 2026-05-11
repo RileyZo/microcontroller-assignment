@@ -7,7 +7,6 @@ sbit C3 = P2^6;
 sbit C4 = P2^7;
 
 unsigned int input_count = 0;
-unsigned char sending = 0;
 
 void delay(unsigned int time) {
     unsigned long ticks = 100 * time;
@@ -22,18 +21,7 @@ unsigned int get_input(unsigned int row) {
     return 16;
 }
 
-void uart_init() {
-    SCON = 0x50;
-    TMOD &= 0x0F;
-    TMOD |= 0x20;
-    TH1 = 0xFD;     // 波特率9600 (11.0592MHz)
-    TL1 = 0xFD;
-    TR1 = 1;
-    ES = 1;
-    EA = 1;
-}
-
-void uart_send(unsigned char dat) {
+void send(unsigned char dat) {
     SBUF = dat;
     while(!TI);
     TI = 0;
@@ -45,7 +33,13 @@ void main() {
     unsigned int prev_key = 16;
     P1 = 0x00;
     
-    uart_init();
+    SCON = 0x50;
+    TMOD = 0x20;
+    TH1 = 0xFD;
+    TL1 = 0xFD;
+    TR1 = 1;
+    ES = 1;
+    EA = 1;
     
     while(1) {
         row = row % 4;
@@ -55,7 +49,7 @@ void main() {
         if (key != 16 && key != prev_key) {
             delay(10);
             if (key == get_input(row)) {
-                uart_send(key);
+                send(key);
                 while(!C1 || !C2 || !C3 || !C4);
                 prev_key = 16;
             }
@@ -70,7 +64,7 @@ void main() {
     }
 }
 
-void uart_isr() interrupt 4 {
+void on_received() interrupt 4 {
     if (RI) {
         RI = 0;
         input_count = SBUF;
